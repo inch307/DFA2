@@ -118,7 +118,10 @@ class DFA2Net(nn.Module):
         return self.z4
 
     def update_B(self, lr, e):
-        self.B1 = self.B1 - lr * e 
+        d = torch.t(e * self.z4 * (1 - self.z4))
+        self.B1 = self.B1 - lr * torch.matmul(d, self.z1)
+        self.B2 = self.B2 - lr * torch.matmul(d, self.z2)
+        self.B3 = self.B3 - lr * torch.matmul(d, self.z3)
 
     def backward(self, e, x):
         x = x.view(-1, 784)
