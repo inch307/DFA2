@@ -1,20 +1,222 @@
 import argparse
 import torchvision
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 import argparse
 from net import Net
+from net import DFANet
+from net import DFA2Net
 from utils import *
-
+from tqdm import tqdm
 parser = argparse.ArgumentParser(description='a')
-parser.add_argument('-m', '--model', default='dfa')
-parser.add_argument('-d', '--device', default='cuda')
+parser.add_argument('-m', '--model', default='sup')
+parser.add_argument('-d', '--device', default='cpu')
+parser.add_argument('-e', '--epochs', default=50, type=int)
+parser.add_argument('--post', action='store_true', default=False)
+parser.add_argument('--BFirst', action='store_true', default=False)
 
-def val():
-    pass
+def one_hot(target, batch_size, output_size):
+    r = []
+    for i in range(batch_size):
+        lst = [0] * output_size
+        lst[target[i]] = 1
+        r.append(lst)
 
-def train():
-    pass
+    return torch.tensor(r)
+
+
+def topk_correct(output, target, topk=(1,)):
+    with torch.no_grad():
+        maxk = max(topk)
+        _, pred = output.topk(maxk, 1, True, True)
+        pred = pred.t()
+        correct = pred.eq(target.view(1, -1).expand_as(pred))
+        correct = correct.contiguous()
+
+        res = []
+        for k in topk:
+            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            res.append(correct_k)
+        return res
+
+def val(net, val_loader, device):
+    net.eval()
+    criterion = nn.CrossEntropyLoss()
+    test_loss = 0
+    correct1 = 0
+    correct3 = 0
+    correct5 = 0
+
+    with torch.no_grad():
+        for data, target in tqdm(val_loader):
+            data, target = data.to(device), target.to(device)
+            output = net(data)
+            test_loss += criterion(output, target).item()
+            c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
+            correct1 += c1
+            correct3 += c3
+            correct5 += c5
+    acc1 = correct1 / len(val_loader.dataset) * 100
+    acc3 = correct3 / len(val_loader.dataset) * 100
+    acc5 = correct5 / len(val_loader.dataset) * 100
+
+    print(f'validation, acc1: {acc1}, acc3: {acc3}, acc5: {acc5}')
+
+def train_backprop(net, train_loader, optimizer, device):
+    net.train()
+    criterion = nn.CrossEntropyLoss()
+    losses = []
+    correct1 = 0
+    correct3 = 0
+    correct5 = 0
+    n_iter = 0
+    for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = net(data)
+        c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
+        correct1 += c1
+        correct3 += c3
+        correct5 += c5
+        loss = criterion(output, target)
+        loss.backward()
+
+        optimizer.step()
+        
+        losses.append(loss.item())
+        
+        if n_iter % 500 == 0:
+            acc1_i = c1 / target.size(0) * 100
+            acc3_i = c3 / target.size(0) * 100
+            acc5_i = c5 / target.size(0) * 100
+            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
+        n_iter += 1
+    acc1 = correct1 / len(train_loader.dataset) * 100
+    acc3 = correct3 / len(train_loader.dataset) * 100
+    acc5 = correct5 / len(train_loader.dataset) * 100
+
+    print(f'acc1: {acc1}, acc3: {acc3}, acc5: {acc5}')
+
+    return
+
+def train_dfa(net, train_loader, optimizer, device, lr):
+    net.train()
+    criterion = nn.CrossEntropyLoss()
+    losses = []
+    correct1 = 0
+    correct3 = 0
+    correct5 = 0
+    n_iter = 0
+    for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = net(data)
+        c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
+        correct1 += c1
+        correct3 += c3
+        correct5 += c5
+        loss = criterion(output, target)
+        target = one_hot(target, 64, 10)
+        net.backward(output-target ,data)
+
+        optimizer.step()
+        
+        losses.append(loss.item())
+        
+        if n_iter % 500 == 0:
+            acc1_i = c1 / target.size(0) * 100
+            acc3_i = c3 / target.size(0) * 100
+            acc5_i = c5 / target.size(0) * 100
+            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
+        n_iter += 1
+    acc1 = correct1 / len(train_loader.dataset) * 100
+    acc3 = correct3 / len(train_loader.dataset) * 100
+    acc5 = correct5 / len(train_loader.dataset) * 100
+
+    print(f'acc1: {acc1}, acc3: {acc3}, acc5: {acc5}')
+    
+def train_dfa2(net, train_loader, optimizer, device, lr, post):
+    net.train()
+    criterion = nn.CrossEntropyLoss()
+    losses = []
+    correct1 = 0
+    correct3 = 0
+    correct5 = 0
+    n_iter = 0
+    for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = net(data)
+        c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
+        correct1 += c1
+        correct3 += c3
+        correct5 += c5
+        loss = criterion(output, target)
+        target = one_hot(target, 64, 10)
+
+        if post:
+            net.backward(output-target ,data)
+            net.update_B(lr, output-target)
+
+        else:
+            net.update_B(lr, output-target)
+            net.backward(output-target ,data)
+
+        optimizer.step()
+        
+        losses.append(loss.item())
+        
+        if n_iter % 500 == 0:
+            acc1_i = c1 / target.size(0) * 100
+            acc3_i = c3 / target.size(0) * 100
+            acc5_i = c5 / target.size(0) * 100
+            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
+        n_iter += 1
+    acc1 = correct1 / len(train_loader.dataset) * 100
+    acc3 = correct3 / len(train_loader.dataset) * 100
+    acc5 = correct5 / len(train_loader.dataset) * 100
+
+    print(f'acc1: {acc1}, acc3: {acc3}, acc5: {acc5}')
+
+def train_dfa3(net, train_loader, optimizer, device, lr, epochs):
+    net.train()
+    criterion = nn.CrossEntropyLoss()
+    losses = []
+    correct1 = 0
+    correct3 = 0
+    correct5 = 0
+    n_iter = 0
+    for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = net(data)
+        c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
+        correct1 += c1
+        correct3 += c3
+        correct5 += c5
+        loss = criterion(output, target)
+        target = one_hot(target, 64, 10)
+
+        for i in range(epochs):
+            net.update_B(lr, output-target)
+        net.backward(output-target ,data)
+
+        optimizer.step()
+        
+        losses.append(loss.item())
+        
+        if n_iter % 500 == 0:
+            acc1_i = c1 / target.size(0) * 100
+            acc3_i = c3 / target.size(0) * 100
+            acc5_i = c5 / target.size(0) * 100
+            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
+        n_iter += 1
+    acc1 = correct1 / len(train_loader.dataset) * 100
+    acc3 = correct3 / len(train_loader.dataset) * 100
+    acc5 = correct5 / len(train_loader.dataset) * 100
+
+    print(f'acc1: {acc1}, acc3: {acc3}, acc5: {acc5}')
 
 def main():
     args = parser.parse_args()
@@ -22,11 +224,31 @@ def main():
 
     train_dataset, val_dataset = get_dataset()
     train_loader, val_loader = get_dataloader(train_dataset, val_dataset)
-    net = Net(args.model)
-
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
-    
-
+    lr=0.005
+    if args.model == 'sup':
+        net = Net(device=device)
+        optimizer = torch.optim.SGD(net.parameters(), lr=0.005)
+        for i in range(args.epochs):
+            train_backprop(net, train_loader, optimizer, device)
+            val(net, val_loader, device)    
+    elif args.model == 'dfa':
+        net = DFANet(device=device)
+        optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        for i in range(args.epochs):
+            train_dfa(net, train_loader, optimizer, device, lr)    
+            val(net, val_loader, device)
+    elif args.model == 'dfa2' and args.BFirst == False:
+        net = DFA2Net(device=device)
+        optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        for i in range(args.epochs):
+            train_dfa2(net, train_loader, optimizer, device, lr, args.post)    
+            val(net, val_loader, device)
+    elif args.model == 'dfa2' and args.BFirst == True:
+        net = DFA2Net(device=device)
+        optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        for i in range(args.epochs):
+            train_dfa3(net, train_loader, optimizer, device, lr, 1)    
+            val(net, val_loader, device)
 
 
 main()
