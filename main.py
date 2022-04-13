@@ -120,6 +120,27 @@ def train_dfa(net, train_loader, optimizer, device, lr):
         target = one_hot(target, 64, 10)
         net.backward(output-target ,data)
 
+        if n_iter == 0:
+            acc1_i = c1 / target.size(0) * 100
+            acc3_i = c3 / target.size(0) * 100
+            acc5_i = c5 / target.size(0) * 100
+            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
+            print('asd')
+            print(output)
+            print(net.fc1.weight)
+            print(net.fc3.bias)
+
+        if n_iter == 1:
+            acc1_i = c1 / target.size(0) * 100
+            acc3_i = c3 / target.size(0) * 100
+            acc5_i = c5 / target.size(0) * 100
+            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
+            print('asd')
+            print(output)
+            print(net.fc1.weight)
+            print(net.fc3.bias)
+            
+
         optimizer.step()
         
         losses.append(loss.item())
@@ -227,27 +248,34 @@ def main():
     lr=0.005
     if args.model == 'sup':
         net = Net(device=device)
-        optimizer = torch.optim.SGD(net.parameters(), lr=0.005)
+        # optimizer = torch.optim.SGD(net.parameters(), lr=0.005)
+        optimizer = torch.optim.RMSprop(net.parameters(), lr=0.001)
         for i in range(args.epochs):
             train_backprop(net, train_loader, optimizer, device)
             val(net, val_loader, device)    
     elif args.model == 'dfa':
         net = DFANet(device=device)
-        optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        # optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        optimizer = torch.optim.RMSprop(net.parameters(), lr=0.001)
+        net.init('zero')
         for i in range(args.epochs):
             train_dfa(net, train_loader, optimizer, device, lr)    
             val(net, val_loader, device)
     elif args.model == 'dfa2' and args.BFirst == False:
         net = DFA2Net(device=device)
-        optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        # optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        optimizer = torch.optim.RMSprop(net.parameters(), lr=0.001)
+        net.init('zero')
         for i in range(args.epochs):
             train_dfa2(net, train_loader, optimizer, device, lr, args.post)    
             val(net, val_loader, device)
     elif args.model == 'dfa2' and args.BFirst == True:
         net = DFA2Net(device=device)
-        optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        # optimizer = torch.optim.SGD(net.parameters(), lr=0.001)
+        optimizer = torch.optim.RMSprop(net.parameters(), lr=0.001)
+        net.init('zero')
         for i in range(args.epochs):
-            train_dfa3(net, train_loader, optimizer, device, lr, 1)    
+            train_dfa3(net, train_loader, optimizer, device, lr, 2)    
             val(net, val_loader, device)
 
 

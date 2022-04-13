@@ -6,10 +6,10 @@ class Net(nn.Module):
         super(Net, self).__init__()
         self.device = kwargs['device']
 
-        self.fc1 = nn.Linear(in_features=784, out_features=800, bias=False)
-        self.fc2 = nn.Linear(800, 400, bias=False)
-        self.fc3 = nn.Linear(400, 100, bias=False)
-        self.out = nn.Linear(100, 10, bias=False)
+        self.fc1 = nn.Linear(in_features=784, out_features=800, bias=True)
+        self.fc2 = nn.Linear(800, 400, bias=True)
+        self.fc3 = nn.Linear(400, 100, bias=True)
+        self.out = nn.Linear(100, 10, bias=True)
 
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax()
@@ -32,10 +32,10 @@ class DFANet(nn.Module):
         super(DFANet, self).__init__()
         self.device = kwargs['device']
 
-        self.fc1 = nn.Linear(in_features=784, out_features=800, bias=False)
-        self.fc2 = nn.Linear(800, 400, bias=False)
-        self.fc3 = nn.Linear(400, 100, bias=False)
-        self.out = nn.Linear(100, 10, bias=False)
+        self.fc1 = nn.Linear(in_features=784, out_features=800, bias=True)
+        self.fc2 = nn.Linear(800, 400, bias=True)
+        self.fc3 = nn.Linear(400, 100, bias=True)
+        self.out = nn.Linear(100, 10, bias=True)
 
         self.tanh = nn.Tanh()
         self.softmax = nn.Softmax()
@@ -83,15 +83,26 @@ class DFANet(nn.Module):
 
         return
 
+    def init(self, method):
+        if method == 'zero':
+            self.fc1.weight.data.fill_(0)
+            self.fc1.bias.data.fill_(0)
+            self.fc2.weight.data.fill_(0)
+            self.fc2.bias.data.fill_(0)
+            self.fc3.weight.data.fill_(0)
+            self.fc3.bias.data.fill_(0)
+            self.out.weight.data.fill_(0)
+            self.out.bias.data.fill_(0)
+
 class DFA2Net(nn.Module):
     def __init__(self, *args, **kwargs):
         super(DFA2Net, self).__init__()
         self.device = kwargs['device']
 
-        self.fc1 = nn.Linear(in_features=784, out_features=800, bias=False)
-        self.fc2 = nn.Linear(800, 400, bias=False)
-        self.fc3 = nn.Linear(400, 100, bias=False)
-        self.out = nn.Linear(100, 10, bias=False)
+        self.fc1 = nn.Linear(in_features=784, out_features=800, bias=True)
+        self.fc2 = nn.Linear(800, 400, bias=True)
+        self.fc3 = nn.Linear(400, 100, bias=True)
+        self.out = nn.Linear(100, 10, bias=True)
 
         self.tanh = nn.Tanh()
         self.softmax = nn.Softmax()
@@ -145,3 +156,14 @@ class DFA2Net(nn.Module):
         # self.out.bias.grad = torch.sum(e, 0)
 
         return
+
+    def init(self, method):
+        if method == 'zero':
+            self.fc1.weight.data.fill_(0)
+            self.fc1.bias.data.fill_(0)
+            self.fc2.weight.data.fill_(0)
+            self.fc2.bias.data.fill_(0)
+            self.fc3.weight.data.fill_(0)
+            self.fc3.bias.data.fill_(0)
+            self.out.weight.data.fill_(0)
+            self.out.bias.data.fill_(0)
