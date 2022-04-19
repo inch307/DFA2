@@ -35,6 +35,9 @@ class DFANet(nn.Module):
 
         self.fc1 = nn.Linear(in_features=784, out_features=800, bias=True)
         self.fc2 = nn.Linear(800, 400, bias=True)
+        self.fc_lst = []
+        for i in range(30):
+            self.fc_lst.append(nn.Linear(400, 400))
         self.fc3 = nn.Linear(400, 100, bias=True)
         self.out = nn.Linear(100, 10, bias=True)
 
@@ -43,6 +46,9 @@ class DFANet(nn.Module):
 
         self.B1 = self.get_projection_matrix(800)
         self.B2 = self.get_projection_matrix(400)
+        self.B_lst = []
+        for i in range(30):
+            self.B_lst.append(self.get_projection_matrix(400))
         self.B3 = self.get_projection_matrix(100)
 
     def get_projection_matrix(self, hidden):
@@ -56,7 +62,16 @@ class DFANet(nn.Module):
         self.z1 = self.tanh(self.y1)
         self.y2 = self.fc2(self.z1)
         self.z2 = self.tanh(self.y2)
-        self.y3 = self.fc3(self.z2)
+        
+        self.y_lst = []
+        self.z_lst = []
+        self.y_lst.append(self.fc_lst[0](self.z2))
+        self.z_lst.append(self.tanh(self.y_lst[0]))
+        for i in range(29):
+            self.y_lst.append(self.z_lst[i])
+            self.z_lst.append(self.y_lst[i+1])
+
+        self.y3 = self.fc3(self.z_lst[-1])
         self.z3 = self.tanh(self.y3)
         self.y4 = self.out(self.z3)
         self.z4 = self.softmax(self.y4)
@@ -75,8 +90,14 @@ class DFANet(nn.Module):
         self.fc2.weight.grad = torch.matmul(torch.t(dx2), self.z1) / 64 # batch szie
         # self.fc2.bias.grad = torch.sum(dx2, 0)
 
+        dx = torch.matmul(e, self.B_lst[0]) * (1-torch.tanh(self.y_lst[0]**2))
+        self.fc_lst[0].weight.grad = torch.matmul(torch.t(dx), self.z2)
+        for i in range(20):
+            dx = torch.matmul(e, self.B_lst[i+1]) * (1-torch.tanh(self.y_lst[i+1]**2))
+            self.fc_lst[i+1].weight.grad = torch.matmul(torch.t(dx), self.z_lst[i])
+
         dx3 = torch.matmul(e, self.B3) * (1-torch.tanh(self.y3) ** 2)
-        self.fc3.weight.grad = torch.matmul(torch.t(dx3), self.z2) / 64 # batch szie
+        self.fc3.weight.grad = torch.matmul(torch.t(dx3), self.z_lst[-1]) / 64 # batch szie
         # self.fc3.bias.grad = torch.sum(dx3, 0)
 
         self.out.weight.grad = torch.matmul(torch.t(e), self.z3) / 64 # batch szie
