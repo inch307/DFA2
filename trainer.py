@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import sklearn.metrics
+import torch.nn.functional as F
 
 def one_hot(target, batch_size, output_size):
     r = []
@@ -32,6 +34,8 @@ def val(net, val_loader, device, args):
     test_B_loss = 0
     test_B_acc = [0, 0, 0]
     accuracy = [0, 0, 0]
+    label = []
+    pred_lst = []
     
     with torch.no_grad():
         for _batch_idx, (data, target) in enumerate(val_loader):
@@ -45,6 +49,10 @@ def val(net, val_loader, device, args):
             accuracy[1] += c3
             accuracy[2] += c5
 
+            pred = F.softmax(output, dim=1)
+            pred_lst.append(pred)
+            label.append(target)
+
             # if args.model in ['dfa', 'dfa2']:
             #     test_B_loss = net.get_B_loss(output)
             #     test_B_loss_1 += test_B_loss[0] * 64 / len(val_loader.dataset)
@@ -52,12 +60,17 @@ def val(net, val_loader, device, args):
             #     test_B_loss_3 += test_B_loss[2] * 64 / len(val_loader.dataset)
 
     test_loss = test_loss / len(val_loader.dataset)
+
+    pred = torch.cat(pred_lst, dim=0).to(torch.device('cpu'))
+    label = torch.cat(label, dim=0).to(torch.device('cpu'))
+
+    auroc = sklearn.metrics.roc_auc_score(label, pred, multi_class='ovr')
             
     accuracy[0] = accuracy[0] / len(val_loader.dataset) * 100
     accuracy[1] = accuracy[1] / len(val_loader.dataset) * 100
     accuracy[2] = accuracy[2] / len(val_loader.dataset) * 100
 
-    print(f'validation, test_loss: {test_loss},  acc1: {accuracy[0]}, acc3: {accuracy[1]}, acc5: {accuracy[2]}')
+    print(f'validation, test_loss: {test_loss},  acc1: {accuracy[0]}, acc3: {accuracy[1]}, acc5: {accuracy[2]}, auroc: {auroc}')
     # print(f'validation, acc1: {acc1}, acc3: {acc3}, acc5: {acc5}, test_B_loss_y1: {test_B_loss_1}, test_B_loss_y2: {test_B_loss_2}, test_B_loss_y3: {test_B_loss_3}')
 
 def train_backprop(net, train_loader, optimizer, device, args):
@@ -77,10 +90,14 @@ def train_backprop(net, train_loader, optimizer, device, args):
         
         optimizer.step()
     
+    # train accuracy and loss
+
     with torch.no_grad():
         train_loss = 0
         criterion_train_loss = nn.CrossEntropyLoss(reduction='sum')
         accuracy = [0, 0, 0]
+        label = []
+        pred_lst = []
         for _batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
             if args.net in ['simple_linear1', 'simple_linear2']:
@@ -92,7 +109,16 @@ def train_backprop(net, train_loader, optimizer, device, args):
             accuracy[2] += c5
             loss = criterion_train_loss(output, target)
 
+            pred = F.softmax(output, dim=1)
+            pred_lst.append(pred)
+            label.append(target)
+
             train_loss += loss.item()
+
+        pred = torch.cat(pred_lst, dim=0).to(torch.device('cpu'))
+        label = torch.cat(label, dim=0).to(torch.device('cpu'))
+
+        auroc = sklearn.metrics.roc_auc_score(label, pred, multi_class='ovr')
 
         train_loss = train_loss / len(train_loader.dataset)
 
@@ -100,7 +126,7 @@ def train_backprop(net, train_loader, optimizer, device, args):
         accuracy[1] = accuracy[1] / len(train_loader.dataset) * 100
         accuracy[2] = accuracy[2] / len(train_loader.dataset) * 100
 
-    print(f'train_loss: {train_loss}, acc1: {accuracy[0]}, acc3: {accuracy[1]}, acc5: {accuracy[2]}')
+    print(f'train_loss: {train_loss}, acc1: {accuracy[0]}, acc3: {accuracy[1]}, acc5: {accuracy[2]}, auroc: {auroc}')
 
            
     return train_loss, accuracy

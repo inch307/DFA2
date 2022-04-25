@@ -1,15 +1,9 @@
 import argparse
-from email.policy import default
-import torchvision
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
 import argparse
-from net import Net
-from net import DFANet
-from net import DFA2Net
 from utils import *
-from tqdm import tqdm
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 parser = argparse.ArgumentParser(description='a')
 parser.add_argument('-m', '--model', default='backprop', help='backprop for backprop, dfa for normal dfa, dfa2 for proposed method')

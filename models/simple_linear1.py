@@ -17,9 +17,9 @@ class SimpleLinear1(nn.Module):
 
         ## input layer
         if self.args.dataset == 'mnist':
-            fc1 = nn.Linear(in_features=784, out_features=800, bias=True)
-        elif self.args.dataset in 'cifar':
-            fc1 = nn.Linear(in_features=1024, out_features=800, bias=True)
+            fc1 = nn.Linear(in_features=28*28, out_features=800, bias=True)
+        elif self.args.dataset in ['cifar10', 'cifar100']:
+            fc1 = nn.Linear(in_features=32*32*3, out_features=800, bias=True)
         self.append_layer(fc1)
         fc2 = nn.Linear(800, 400, bias=True)
         self.append_layer(fc2)
