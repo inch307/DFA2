@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import sklearn.metrics
 import torch.nn.functional as F
+import dfa
 
 def one_hot(target, batch_size, output_size):
     r = []
@@ -78,7 +79,9 @@ def train_backprop(net, train_loader, optimizer, device, args):
     criterion = nn.CrossEntropyLoss()
     losses = []
     n_iter = 0
-
+    for p in net.parameters():
+        print(p.is_leaf)
+    
     for _batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         if args.net in ['simple_linear1', 'simple_linear2']:
@@ -86,12 +89,12 @@ def train_backprop(net, train_loader, optimizer, device, args):
         optimizer.zero_grad()
         output = net(data)
         loss = criterion(output, target)
-        loss.backward()
-        
+        loss.backward()      
         optimizer.step()
     
+        
     # train accuracy and loss
-
+    net.eval()
     with torch.no_grad():
         train_loss = 0
         criterion_train_loss = nn.CrossEntropyLoss(reduction='sum')
@@ -131,216 +134,94 @@ def train_backprop(net, train_loader, optimizer, device, args):
            
     return train_loss, accuracy
 
-def train_dfa(net, train_loader, optimizer, device, lr):
+def train_dfa(net, train_loader, optimizer, device, args):
     net.train()
     criterion = nn.CrossEntropyLoss()
     losses = []
-    correct1 = 0
-    correct3 = 0
-    correct5 = 0
-    train_B_loss_1 = 0
-    train_B_loss_2 = 0
-    train_B_loss_3 = 0
     n_iter = 0
-    for _batch_idx, (data, target) in enumerate(train_loader):
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = net(data)
-        c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
-        correct1 += c1
-        correct3 += c3
-        correct5 += c5
-        loss = criterion(output, target)
-        target = one_hot(target, 64, 10)
-        net.backward(output-target ,data)
 
-        if n_iter % 30 == 0:
-            y1_loss, y2_loss, y3_loss = net.get_B_loss(output)
-            print(f'n_iter: {n_iter}, B_loss is: y1: {y1_loss}, y1: {y2_loss}, y1: {y3_loss}')
-            
-
-        optimizer.step()
-        
-        losses.append(loss.item())
-        
-        if n_iter % 500 == 0:
-            acc1_i = c1 / target.size(0) * 100
-            acc3_i = c3 / target.size(0) * 100
-            acc5_i = c5 / target.size(0) * 100
-            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
-        n_iter += 1
-    
-    correct1 = 0
-    correct3 = 0
-    correct5 = 0
-    train_B_loss_1 = 0
-    train_B_loss_2 = 0
-    train_B_loss_3 = 0
-    with torch.no_grad():
-        for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
+    # if experiment, calculate alignment
+    if args.experiment:
+        for _batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
+            if args.net in ['simple_linear1', 'simple_linear2']:
+                data = data.view(args.batch_size, -1)
+            # backprop backward
             optimizer.zero_grad()
             output = net(data)
-            c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
-            correct1 += c1
-            correct3 += c3
-            correct5 += c5
             loss = criterion(output, target)
-            target = one_hot(target, 64, 10)
-            train_B_loss = net.get_B_loss(output)
-            train_B_loss_1 += train_B_loss[0] * 64 / len(train_loader.dataset)
-            train_B_loss_2 += train_B_loss[1] * 64 / len(train_loader.dataset)
-            train_B_loss_3 += train_B_loss[2] * 64 / len(train_loader.dataset)
-        print(f'train B_loss is: y1: {train_B_loss_1}, y1: {train_B_loss_2}, y1: {train_B_loss_3}')
-        acc1 = correct1 / len(train_loader.dataset) * 100
-        acc3 = correct3 / len(train_loader.dataset) * 100
-        acc5 = correct5 / len(train_loader.dataset) * 100
+            loss.backward()
 
-        print(f'acc1: {acc1}, acc3: {acc3}, acc5: {acc5}')
+            loss = net.get_B_loss()
 
-    
-    
-def train_dfa2(net, train_loader, optimizer, device, lr, post):
-    net.train()
-    criterion = nn.CrossEntropyLoss()
-    losses = []
-    correct1 = 0
-    correct3 = 0
-    correct5 = 0
-    train_B_loss_1 = 0
-    train_B_loss_2 = 0
-    train_B_loss_3 = 0
-    n_iter = 0
-    for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = net(data)
-        c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
-        correct1 += c1
-        correct3 += c3
-        correct5 += c5
-        loss = criterion(output, target)
-        target = one_hot(target, 64, 10)
-
-        if post:
-            if n_iter % 30 == 0:
-                y1_loss, y2_loss, y3_loss = net.get_B_loss(output)
-                print(f'n_iter: {n_iter}, B_loss is: y1: {y1_loss}, y1: {y2_loss}, y1: {y3_loss}')
-            net.backward(output-target ,data)
-            # net.update_B(lr, output-target)
-            net.new_update_B(lr, output)
-
-        else:
-            if n_iter % 30 == 0:
-                y1_loss, y2_loss, y3_loss = net.get_B_loss(output)
-                print(f'n_iter: {n_iter}, B_loss is: y1: {y1_loss}, y1: {y2_loss}, y1: {y3_loss}')
-            net.update_B(lr, output-target)
-            # net.new_update_B(lr, output)
-            net.backward(output-target ,data)
-
-        optimizer.step()
-        
-        losses.append(loss.item())
-        
-        if n_iter % 500 == 0:
-            acc1_i = c1 / target.size(0) * 100
-            acc3_i = c3 / target.size(0) * 100
-            acc5_i = c5 / target.size(0) * 100
-            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
-        n_iter += 1
-
-    correct1 = 0
-    correct3 = 0
-    correct5 = 0
-    train_B_loss_1 = 0
-    train_B_loss_2 = 0
-    train_B_loss_3 = 0
-    with torch.no_grad():
-        for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
-            data, target = data.to(device), target.to(device)
+            # dfa backward
+            y_hat = F.softmax(output)
+            if args.model == 'dfa':
+                dfa.dfa_backward(net, y_hat)
+            elif args.model == 'dfa2':
+                dfa.dfa2_backward(net, y_hat)
+            align = dfa.measure_alignment(net)
             optimizer.zero_grad()
+            dfa.dfa_grad(net)
+            optimizer.step()
+
+    else:
+        with torch.no_grad:
+            for _batch_idx, (data, target) in enumerate(train_loader):
+                data, target = data.to(device), target.to(device)
+                if args.net in ['simple_linear1', 'simple_linear2']:
+                    data = data.view(args.batch_size, -1)
+                optimizer.zero_grad()
+                output = net(data)
+                loss = criterion(output, target)
+
+                loss = net.get_B_loss()
+
+                # dfa backward
+                y_hat = F.softmax(output)
+                if args.model == 'dfa':
+                    net.dfa_backward(y_hat)
+                elif args.model == 'dfa2':
+                    net.dfa2_backward(y_hat)
+                optimizer.step() #TODO: update available?
+
+    # train accuracy and loss
+    net.eval()
+    with torch.no_grad():
+        train_loss = 0
+        criterion_train_loss = nn.CrossEntropyLoss(reduction='sum')
+        accuracy = [0, 0, 0]
+        label = []
+        pred_lst = []
+        for _batch_idx, (data, target) in enumerate(train_loader):
+            data, target = data.to(device), target.to(device)
+            if args.net in ['simple_linear1', 'simple_linear2']:
+                data = data.view(args.batch_size, -1)
             output = net(data)
             c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
-            correct1 += c1
-            correct3 += c3
-            correct5 += c5
-            loss = criterion(output, target)
-            target = one_hot(target, 64, 10)
-            train_B_loss = net.get_B_loss(output)
-            train_B_loss_1 += train_B_loss[0] * 64 / len(train_loader.dataset)
-            train_B_loss_2 += train_B_loss[1] * 64 / len(train_loader.dataset)
-            train_B_loss_3 += train_B_loss[2] * 64 / len(train_loader.dataset)
-        print(f'train B_loss is: y1: {train_B_loss_1}, y1: {train_B_loss_2}, y1: {train_B_loss_3}')
-        acc1 = correct1 / len(train_loader.dataset) * 100
-        acc3 = correct3 / len(train_loader.dataset) * 100
-        acc5 = correct5 / len(train_loader.dataset) * 100
+            accuracy[0] += c1
+            accuracy[1] += c3
+            accuracy[2] += c5
+            loss = criterion_train_loss(output, target)
 
-        print(f'acc1: {acc1}, acc3: {acc3}, acc5: {acc5}')
+            pred = F.softmax(output, dim=1)
+            pred_lst.append(pred)
+            label.append(target)
 
-def train_dfa3(net, train_loader, optimizer, device, lr, epochs):
-    net.train()
-    criterion = nn.CrossEntropyLoss()
-    losses = []
-    correct1 = 0
-    correct3 = 0
-    correct5 = 0
-    n_iter = 0
-    for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
-        data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()
-        output = net(data)
-        c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
-        correct1 += c1
-        correct3 += c3
-        correct5 += c5
-        loss = criterion(output, target)
-        target = one_hot(target, 64, 10)
+            train_loss += loss.item()
 
-        
-        if n_iter % 30 == 0:
-            y1_loss, y2_loss, y3_loss = net.get_B_loss(output)
-            print(f'n_iter: {n_iter}, B_loss is: y1: {y1_loss}, y1: {y2_loss}, y1: {y3_loss}')
-        # for i in range(epochs):
-        #     net.update_B(lr, output-target)
-        for i in range(epochs):
-            net.new_update_B(lr, output)
-        net.backward(output-target ,data)
+        pred = torch.cat(pred_lst, dim=0).to(torch.device('cpu'))
+        label = torch.cat(label, dim=0).to(torch.device('cpu'))
 
-        optimizer.step()
-        
-        losses.append(loss.item())
-        
-        if n_iter % 500 == 0:
-            acc1_i = c1 / target.size(0) * 100
-            acc3_i = c3 / target.size(0) * 100
-            acc5_i = c5 / target.size(0) * 100
-            print(f'acc1: {acc1_i}, acc3: {acc3_i}, acc5: {acc5_i}, loss: {loss}')
-        n_iter += 1
-    
-    correct1 = 0
-    correct3 = 0
-    correct5 = 0
-    train_B_loss_1 = 0
-    train_B_loss_2 = 0
-    train_B_loss_3 = 0
-    with torch.no_grad():
-        for _batch_idx, (data, target) in enumerate(tqdm(train_loader)):
-            data, target = data.to(device), target.to(device)
-            optimizer.zero_grad()
-            output = net(data)
-            c1, c3, c5 = topk_correct(output, target, (1, 3, 5))
-            correct1 += c1
-            correct3 += c3
-            correct5 += c5
-            loss = criterion(output, target)
-            target = one_hot(target, 64, 10)
-            train_B_loss = net.get_B_loss(output)
-            train_B_loss_1 += train_B_loss[0] * 64 / len(train_loader.dataset)
-            train_B_loss_2 += train_B_loss[1] * 64 / len(train_loader.dataset)
-            train_B_loss_3 += train_B_loss[2] * 64 / len(train_loader.dataset)
-        print(f'train B_loss is: y1: {train_B_loss_1}, y1: {train_B_loss_2}, y1: {train_B_loss_3}')
-        acc1 = correct1 / len(train_loader.dataset) * 100
-        acc3 = correct3 / len(train_loader.dataset) * 100
-        acc5 = correct5 / len(train_loader.dataset) * 100
+        auroc = sklearn.metrics.roc_auc_score(label, pred, multi_class='ovr')
 
-        print(f'acc1: {acc1}, acc3: {acc3}, acc5: {acc5}')
+        train_loss = train_loss / len(train_loader.dataset)
+
+        accuracy[0] = accuracy[0] / len(train_loader.dataset) * 100
+        accuracy[1] = accuracy[1] / len(train_loader.dataset) * 100
+        accuracy[2] = accuracy[2] / len(train_loader.dataset) * 100
+
+    print(f'train_loss: {train_loss}, acc1: {accuracy[0]}, acc3: {accuracy[1]}, acc5: {accuracy[2]}, auroc: {auroc}')
+
+           
+    return train_loss, accuracy
