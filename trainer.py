@@ -79,8 +79,6 @@ def train_backprop(net, train_loader, optimizer, device, args):
     criterion = nn.CrossEntropyLoss()
     losses = []
     n_iter = 0
-    for p in net.parameters():
-        print(p.is_leaf)
     
     for _batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -140,6 +138,14 @@ def train_dfa(net, train_loader, optimizer, device, args):
     losses = []
     n_iter = 0
 
+    if args.dataset == 'mnist' or args.dataset == 'cifar10' or args.dataset == 'stl10':
+        output_size = 10
+    elif args.dataset == 'cifar100':
+        output_size = 100
+    elif args.dataset == 'imagenet':
+        output_size = 1000
+
+
     # if experiment, calculate alignment
     if args.experiment:
         for _batch_idx, (data, target) in enumerate(train_loader):
@@ -152,21 +158,24 @@ def train_dfa(net, train_loader, optimizer, device, args):
             loss = criterion(output, target)
             loss.backward()
 
-            loss = net.get_B_loss()
+            # loss = net.get_B_loss() TODO
 
-            # dfa backward
-            y_hat = F.softmax(output)
-            if args.model == 'dfa':
-                dfa.dfa_backward(net, y_hat)
-            elif args.model == 'dfa2':
-                dfa.dfa2_backward(net, y_hat)
-            align = dfa.measure_alignment(net)
-            optimizer.zero_grad()
-            dfa.dfa_grad(net)
-            optimizer.step()
+            with torch.no_grad():
+                one_hot_target = one_hot(target, args.batch_size, output_size)
+
+                # dfa backward
+                y_hat = F.softmax(output)
+                if args.model == 'dfa':
+                    dfa.dfa_backward(net, y_hat, one_hot_target)
+                elif args.model == 'dfa2':
+                    dfa.dfa2_backward(net, y_hat, one_hot_target)
+                # align = dfa.measure_alignment(net) TODO
+                optimizer.zero_grad()
+                dfa.dfa_grad(net)
+                optimizer.step()
 
     else:
-        with torch.no_grad:
+        with torch.no_grad():
             for _batch_idx, (data, target) in enumerate(train_loader):
                 data, target = data.to(device), target.to(device)
                 if args.net in ['simple_linear1', 'simple_linear2']:
@@ -175,14 +184,18 @@ def train_dfa(net, train_loader, optimizer, device, args):
                 output = net(data)
                 loss = criterion(output, target)
 
-                loss = net.get_B_loss()
+                # loss = net.get_B_loss() TODO
+
+                
+                one_hot_target = one_hot(target, args.batch_size, output_size).to(device)
 
                 # dfa backward
                 y_hat = F.softmax(output)
                 if args.model == 'dfa':
-                    net.dfa_backward(y_hat)
+                    dfa.dfa_backward(net, y_hat, one_hot_target)
                 elif args.model == 'dfa2':
-                    net.dfa2_backward(y_hat)
+                    dfa.dfa2_backward(net, y_hat, one_hot_target)
+                dfa.dfa_grad(net)
                 optimizer.step() #TODO: update available?
 
     # train accuracy and loss

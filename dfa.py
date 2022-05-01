@@ -1,35 +1,49 @@
 import torch
 import torch.nn as nn
 
-def dfa_backward(net, y_hat):
-    x = x.view(-1, 784)
-
-    dx1 = torch.matmul(e, net.B1) * (1-torch.tanh(net.y1) ** 2)
-    # print(dx1.shape)
-    net.fc1.weight.grad = torch.matmul(torch.t(dx1), x) / 64 # batch szie
-    # net.fc1.bias.grad = torch.sum(dx1, 0)
-
-    dx2 = torch.matmul(e, net.B2) * (1-torch.tanh(net.y2) ** 2)
-    net.fc2.weight.grad = torch.matmul(torch.t(dx2), net.z1) / 64 # batch szie
-    # net.fc2.bias.grad = torch.sum(dx2, 0)
-
-    dx = torch.matmul(e, net.B_lst[0]) * (1-torch.tanh(net.y_lst[0]**2))
-    net.fc_lst[0].weight.grad = torch.matmul(torch.t(dx), net.z2)
-    for i in range(20):
-        dx = torch.matmul(e, net.B_lst[i+1]) * (1-torch.tanh(net.y_lst[i+1]**2))
-        net.fc_lst[i+1].weight.grad = torch.matmul(torch.t(dx), net.z_lst[i])
-
-    dx3 = torch.matmul(e, net.B3) * (1-torch.tanh(net.y3) ** 2)
-    net.fc3.weight.grad = torch.matmul(torch.t(dx3), net.z_lst[-1]) / 64 # batch szie
-    # net.fc3.bias.grad = torch.sum(dx3, 0)
-
-    net.out.weight.grad = torch.matmul(torch.t(e), net.z3) / 64 # batch szie
-    # net.out.bias.grad = torch.sum(e, 0)
-
+def dfa_backward(net, y_hat, one_hot_target):
+    e = y_hat - one_hot_target
+    with torch.no_grad():
+        output_layer = True
+        for module in reversed(net.layer_lst):
+            if isinstance(module, nn.Linear):
+                if output_layer:
+                    module.weight.dfa_grad = torch.matmul(torch.t(e), module.input) / net.args.batch_size
+                    if module.bias is not None:
+                        module.bias.dfa_grad = torch.sum(e, 0)
+                    output_layer = False
+                else:
+                    dx = torch.matmul(e, module.B) * (1-torch.tanh(module.output) ** 2) # TODO: tanh -> relu?
+                    module.weight.dfa_grad = torch.matmul(torch.t(dx), module.input) / net.args.batch_size
+                    if module.bias is not None:
+                        module.bias.dfa_grad = torch.sum(dx, 0)
     return
 
-def dfa2_backward(net, args):
-    pass
+def dfa2_backward(net, y_hat, one_hot_target):
+    with torch.no_grad():
+        e = y_hat - one_hot_target
+        do = torch.matmul(e, net.layer_lst[-1].weight) * (1-torch.tanh(net.layer_lst[-3].output) ** 2)
+        output_layer = True
+        output_layer2 = True
+        for module in reversed(net.layer_lst):
+            if isinstance(module, nn.Linear):
+                if output_layer:
+                    module.weight.dfa_grad = torch.matmul(torch.t(e), module.input) / net.args.batch_size
+                    if module.bias is not None:
+                        module.bias.dfa_grad = torch.sum(e, 0)
+                    output_layer = False
+                elif output_layer2:
+                    module.weight.dfa_grad = torch.matmul(torch.t(do), module.input) / net.args.batch_size
+                    if module.bias is not None:
+                        module.bias.dfa_grad = torch.sum(do, 0)
+                    output_layer2 = False
+                else:
+                    dx = torch.matmul(do, module.B) * (1-torch.tanh(module.output) ** 2) # TODO: tanh -> relu?
+                    module.weight.dfa_grad = torch.matmul(torch.t(dx), module.input) / net.args.batch_size
+                    if module.bias is not None:
+                        module.bias.dfa_grad = torch.sum(dx, 0)
+    return
+
 
 def measure_alignment(net, args):
     pass
@@ -45,23 +59,11 @@ def get_B_loss(net, output):
 
     return y1_loss, y2_loss, y3_loss
 
-def weight_init(net, method):
-    if method == 'zero':
-        net.fc1.weight.data.fill_(0)
-        # net.fc1.bias.data.fill_(0)
-        net.fc2.weight.data.fill_(0)
-        # net.fc2.bias.data.fill_(0)
-        net.fc3.weight.data.fill_(0)
-        # net.fc3.bias.data.fill_(0)
-        net.out.weight.data.fill_(0)
-        # net.out.bias.data.fill_(0)
-
-
-# TODO: appropriate init
-def get_projection_matrix(net, hidden):
-    B = torch.randn(10, hidden)
-
-    return B
 
 def dfa_grad(net):
-    pass
+    for name, module in net.sequential_layer.named_modules():
+        if isinstance(module, nn.Linear):
+            module.weight.grad = module.weight.dfa_grad.detach()
+            module.weight.dfa_grad = None
+            if module.bias is not None:
+                    module.bias.grad = module.bias.dfa_grad

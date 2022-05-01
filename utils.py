@@ -55,10 +55,11 @@ def train(net, train_loader, val_loader, optimizer, device, args):
             print(f'epoch: {epoch}')
             trainer.train_backprop(net, train_loader, optimizer, device, args)
             trainer.val(net, val_loader, device, args)
-    elif args.model == 'dfa':
-        trainer.train_dfa(net, train_loader, optimizer, args)
-    elif args.modell == 'dfa2':
-        trainer.train_dfa2(net, train_loader, optimizer, args)
-    
+    elif args.model == 'dfa' or args.model == 'dfa2':
+        for epoch in range(args.epochs):
+            print(f'epoch: {epoch}')
+            trainer.train_dfa(net, train_loader, optimizer, device, args)
+            trainer.val(net, val_loader, device, args)
+
     #for epoch
         #data, train, if exp backprop backward, no_grad, dfa backward, step, if exp analysis (alignment, ...)

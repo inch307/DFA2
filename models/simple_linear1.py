@@ -13,6 +13,8 @@ class SimpleLinear1(nn.Module):
         elif self.args.activation == 'relu':
             self.activation = nn.ReLU()
 
+        ############ make layers ##################
+
         self.layer_lst = []
 
         ## input layer
@@ -35,16 +37,40 @@ class SimpleLinear1(nn.Module):
 
         self.sequential_layer = nn.Sequential(*self.layer_lst)
 
-        # TODO:
-        if self.args.model in 'dfa':
-            # register forward hook
+        ############ make layers ##################
 
-            self.B1 = self.get_projection_matrix(800)
-            self.B2 = self.get_projection_matrix(400)
-            self.B_lst = []
-            for i in range(30):
-                self.B_lst.append(self.get_projection_matrix(400))
-            self.B3 = self.get_projection_matrix(100)
+        # TODO:
+        if self.args.model == 'dfa':
+            # register forward hook
+            self.reg_forward_hook()
+
+            if self.args.dataset == 'mnist' or self.args.dataset == 'cifar10' or self.args.dataset == 'stl10':
+                output_size = 10
+            elif self.args.dataset == 'cifar100':
+                output_size = 100
+            elif self.args.dataset == 'imagenet':
+                output_size = 1000
+
+            for name, module in self.sequential_layer.named_modules():
+                if isinstance(module, nn.Linear):
+                    module.B = self.get_projection_matrix(module.out_features, output_size)
+
+        elif self.args.model == 'dfa2':
+            # register forward hook
+            self.reg_forward_hook()
+            output_size = self.layer_lst[-1].in_features
+
+            for name, module in self.sequential_layer.named_modules():
+                if isinstance(module, nn.Linear):
+                    module.B = self.get_projection_matrix(module.out_features, output_size)
+
+        self.weight_init()
+
+    def reg_forward_hook(self):
+        # named_modules return [squentals, layer0, layer1, ...]
+        for name, module in self.sequential_layer.named_modules():
+            if isinstance(module, nn.Linear):
+                module.register_forward_hook(self.save_forward_hook(name))
 
     def append_layer(self, layer):
         self.layer_lst.append(layer)
@@ -53,9 +79,35 @@ class SimpleLinear1(nn.Module):
         #     self.layer_lst.append(nn.Tanh())
         # elif self.activation == 'relu':
         #     self.layer_lst.append(nn.ReLU())
-        
+
+    # TODO: appropriate init
+    def get_projection_matrix(self, out_features, output_size):
+        B = torch.randn(output_size, out_features).to(self.device)
+        return B
+
+    def save_forward_hook(self, layer_id):
+        def hook(module, input, output):
+            module.input = input[0]
+            module.output = output
+        return hook
 
     def forward(self, x):
         x = self.sequential_layer(x)
 
         return x
+
+    def weight_init(self):
+        if self.args.init == 'zero':
+            for name, module in self.sequential_layer.named_modules():
+                if isinstance(module, nn.Linear):
+                    module.weight.data.fill_(0)
+                    if module.bias is not None:
+                        module.bias.data.fill_(0)
+        else:
+            for name, module in self.sequential_layer.named_modules():
+                if isinstance(module, nn.Linear):
+                    nn.init.xavier_normal(module.weight)
+                    if module.bias is not None:
+                        module.bias.data.fill_(0)
+
+            
