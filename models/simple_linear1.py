@@ -58,11 +58,18 @@ class SimpleLinear1(nn.Module):
         elif self.args.model == 'dfa2':
             # register forward hook
             self.reg_forward_hook()
-            output_size = self.layer_lst[-1].in_features
+
+            if self.args.dataset == 'mnist' or self.args.dataset == 'cifar10' or self.args.dataset == 'stl10':
+                output_size = 10
+            elif self.args.dataset == 'cifar100':
+                output_size = 100
+            elif self.args.dataset == 'imagenet':
+                output_size = 1000
 
             for name, module in self.sequential_layer.named_modules():
                 if isinstance(module, nn.Linear):
-                    module.B = self.get_projection_matrix(module.out_features, output_size)
+                    module.B = self.get_projection_matrix(module.out_features, self.layer_lst[-1].in_features)
+            self.layer_lst[-3].B = self.get_projection_matrix(self.layer_lst[-3].out_features, output_size)
 
         self.weight_init()
 
@@ -106,7 +113,7 @@ class SimpleLinear1(nn.Module):
         else:
             for name, module in self.sequential_layer.named_modules():
                 if isinstance(module, nn.Linear):
-                    nn.init.xavier_normal(module.weight)
+                    nn.init.xavier_normal_(module.weight) #TODO: relu
                     if module.bias is not None:
                         module.bias.data.fill_(0)
 

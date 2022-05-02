@@ -22,7 +22,8 @@ def dfa_backward(net, y_hat, one_hot_target):
 def dfa2_backward(net, y_hat, one_hot_target):
     with torch.no_grad():
         e = y_hat - one_hot_target
-        do = torch.matmul(e, net.layer_lst[-1].weight) * (1-torch.tanh(net.layer_lst[-3].output) ** 2)
+        # do = torch.matmul(e, net.layer_lst[-1].weight) * (1-torch.tanh(net.layer_lst[-3].output) ** 2)
+        do = torch.matmul(e, net.layer_lst[-3].B) * (1-torch.tanh(net.layer_lst[-3].output) ** 2)
         output_layer = True
         output_layer2 = True
         for module in reversed(net.layer_lst):

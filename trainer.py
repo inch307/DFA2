@@ -164,7 +164,7 @@ def train_dfa(net, train_loader, optimizer, device, args):
                 one_hot_target = one_hot(target, args.batch_size, output_size)
 
                 # dfa backward
-                y_hat = F.softmax(output)
+                y_hat = F.softmax(output, dim=1)
                 if args.model == 'dfa':
                     dfa.dfa_backward(net, y_hat, one_hot_target)
                 elif args.model == 'dfa2':
@@ -190,7 +190,7 @@ def train_dfa(net, train_loader, optimizer, device, args):
                 one_hot_target = one_hot(target, args.batch_size, output_size).to(device)
 
                 # dfa backward
-                y_hat = F.softmax(output)
+                y_hat = F.softmax(output, dim=1)
                 if args.model == 'dfa':
                     dfa.dfa_backward(net, y_hat, one_hot_target)
                 elif args.model == 'dfa2':
