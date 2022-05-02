@@ -113,7 +113,7 @@ class SimpleLinear1(nn.Module):
         else:
             for name, module in self.sequential_layer.named_modules():
                 if isinstance(module, nn.Linear):
-                    nn.init.xavier_normal_(module.weight) #TODO: relu
+                    nn.init.xavier_normal_(module.weight) #TODO: relu, other activations
                     if module.bias is not None:
                         module.bias.data.fill_(0)
 

@@ -39,7 +39,7 @@ def dfa2_backward(net, y_hat, one_hot_target):
                         module.bias.dfa_grad = torch.sum(do, 0)
                     output_layer2 = False
                 else:
-                    dx = torch.matmul(do, module.B) * (1-torch.tanh(module.output) ** 2) # TODO: tanh -> relu?
+                    dx = torch.matmul(do, module.B) * (1-torch.tanh(module.output) ** 2) # TODO: tanh -> relu?, other activations
                     module.weight.dfa_grad = torch.matmul(torch.t(dx), module.input) / net.args.batch_size
                     if module.bias is not None:
                         module.bias.dfa_grad = torch.sum(dx, 0)
