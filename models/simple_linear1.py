@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import math
 
 ## simple linear network only support mnist, cifar10, cifar100
 
@@ -68,7 +69,7 @@ class SimpleLinear1(nn.Module):
 
             for name, module in self.sequential_layer.named_modules():
                 if isinstance(module, nn.Linear):
-                    module.B = self.get_projection_matrix(module.out_features, self.layer_lst[-1].in_features)
+                    module.B = self.get_projection_matrix(module.out_features, self.layer_lst[-1].in_features, math.sqrt(1/self.layer_lst[-1].in_features))
             self.layer_lst[-3].B = self.get_projection_matrix(self.layer_lst[-3].out_features, output_size)
 
         self.weight_init()
@@ -88,8 +89,9 @@ class SimpleLinear1(nn.Module):
         #     self.layer_lst.append(nn.ReLU())
 
     # TODO: appropriate init
-    def get_projection_matrix(self, out_features, output_size):
-        B = torch.randn(output_size, out_features).to(self.device)
+    def get_projection_matrix(self, out_features, output_size, std=1):
+        # B = torch.randn(output_size, out_features).to(self.device)
+        B = (torch.rand((output_size, out_features), device=self.device) - 0.5) * 2 * math.sqrt(3) * std
         return B
 
     def save_forward_hook(self, layer_id):
