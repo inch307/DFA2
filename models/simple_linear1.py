@@ -1,6 +1,9 @@
 import torch.nn as nn
 import torch
 import math
+from dfa import dfa_backward
+from .linear_block import LinearBlock
+from .output_linear import OutputLinear
 
 ## simple linear network only support mnist, cifar10, cifar100
 
@@ -9,114 +12,77 @@ class SimpleLinear1(nn.Module):
         super(SimpleLinear1, self).__init__()
         self.device = kwargs['device']
         self.args = kwargs['args']
-        if self.args.activation == 'tanh':
-            self.activation = nn.Tanh()
-        elif self.args.activation == 'relu':
-            self.activation = nn.ReLU()
+        self.activation = kwargs['activation']
+
+        if self.args.dataset == 'mnist' or self.args.dataset == 'cifar10' or self.args.dataset == 'stl10':
+            self.num_classes = 10
+        elif self.args.dataset == 'cifar100':
+            self.num_classes = 100
+        elif self.args.dataset == 'imagenet':
+            self.num_classes = 1000
 
         ############ make layers ##################
 
-        self.layer_lst = []
+        self.layer = []
 
         ## input layer
         if self.args.dataset == 'mnist':
-            fc1 = nn.Linear(in_features=28*28, out_features=800, bias=True)
+            fc1 = LinearBlock(in_features=28*28, out_features=800, bias=True, num_classes=self.num_classes, activation=self.activation, device=self.device)
         elif self.args.dataset in ['cifar10', 'cifar100']:
-            fc1 = nn.Linear(in_features=32*32*3, out_features=800, bias=True)
-        self.append_layer(fc1)
-        fc2 = nn.Linear(800, 400, bias=True)
-        self.append_layer(fc2)
+            fc1 = LinearBlock(in_features=32*32*3, out_features=800, bias=True, num_classes=self.num_classes, activation=self.activation, device=self.device)
+        self.layer.append(fc1)
+
+        fc2 = LinearBlock(in_features=800, out_features=400, bias=True, num_classes=self.num_classes, activation=self.activation, device=self.device)
+        self.layer.append(fc2)
         
-        for i in range(2):
-            self.append_layer(nn.Linear(400, 400, bias=True))
-        fc3 = nn.Linear(400, 100, bias=True)
-        self.append_layer(fc3)
+        for i in range(3):
+            self.layer.append(LinearBlock(in_features=400, out_features=400, bias=True, num_classes=self.num_classes, activation=self.activation, device=self.device))
+        fc3 = LinearBlock(in_features=400, out_features=100, bias=True, num_classes=self.num_classes, activation=self.activation, device=self.device)
+        self.layer.append(fc3)
         
-        self.out = nn.Linear(100, 10, bias=True)
-        self.layer_lst.append(self.out)
+        self.out = OutputLinear(in_features=100, num_classes=10, bias=True)
+        self.layer.append(self.out)
         # self.layer_lst.append(nn.Softmax())
 
-        self.sequential_layer = nn.Sequential(*self.layer_lst)
+        self.layer = nn.ModuleList(self.layer)
 
         ############ make layers ##################
 
         # TODO:
         if self.args.model == 'dfa':
-            # register forward hook
-            self.reg_forward_hook()
+            for idx, module in enumerate(self.layer):
+                module.random_projection_matrix_init()
+                module.zero_init()
 
-            if self.args.dataset == 'mnist' or self.args.dataset == 'cifar10' or self.args.dataset == 'stl10':
-                output_size = 10
-            elif self.args.dataset == 'cifar100':
-                output_size = 100
-            elif self.args.dataset == 'imagenet':
-                output_size = 1000
+        # elif self.args.model == 'dfa2':
+        #     # register forward hook
+        #     self.reg_forward_hook()
 
-            for name, module in self.sequential_layer.named_modules():
-                if isinstance(module, nn.Linear):
-                    module.B = self.get_projection_matrix(module.out_features, output_size)
+        #     if self.args.dataset == 'mnist' or self.args.dataset == 'cifar10' or self.args.dataset == 'stl10':
+        #         output_size = 10
+        #     elif self.args.dataset == 'cifar100':
+        #         output_size = 100
+        #     elif self.args.dataset == 'imagenet':
+        #         output_size = 1000
 
-        elif self.args.model == 'dfa2':
-            # register forward hook
-            self.reg_forward_hook()
-
-            if self.args.dataset == 'mnist' or self.args.dataset == 'cifar10' or self.args.dataset == 'stl10':
-                output_size = 10
-            elif self.args.dataset == 'cifar100':
-                output_size = 100
-            elif self.args.dataset == 'imagenet':
-                output_size = 1000
-
-            for name, module in self.sequential_layer.named_modules():
-                if isinstance(module, nn.Linear):
-                    module.B = self.get_projection_matrix(module.out_features, self.layer_lst[-1].in_features, math.sqrt(1/self.layer_lst[-1].in_features))
-            self.layer_lst[-3].B = self.get_projection_matrix(self.layer_lst[-3].out_features, output_size)
-
-        self.weight_init()
-
-    def reg_forward_hook(self):
-        # named_modules return [squentals, layer0, layer1, ...]
-        for name, module in self.sequential_layer.named_modules():
-            if isinstance(module, nn.Linear):
-                module.register_forward_hook(self.save_forward_hook(name))
-
-    def append_layer(self, layer):
-        self.layer_lst.append(layer)
-        self.layer_lst.append(self.activation)
-        # if self.activation == 'tanh':
-        #     self.layer_lst.append(nn.Tanh())
-        # elif self.activation == 'relu':
-        #     self.layer_lst.append(nn.ReLU())
-
-    # TODO: appropriate init
-    def get_projection_matrix(self, out_features, output_size, std=1):
-        # B = torch.randn(output_size, out_features).to(self.device)
-        B = (torch.rand((output_size, out_features), device=self.device) - 0.5) * 2 * math.sqrt(3) * std
-        return B
-
-    def save_forward_hook(self, layer_id):
-        def hook(module, input, output):
-            module.input = input[0]
-            module.output = output
-        return hook
+        #     for name, module in self.sequential_layer.named_modules():
+        #         if isinstance(module, nn.Linear):
+        #             module.B = self.get_projection_matrix(module.out_features, self.layer_lst[-1].in_features, math.sqrt(1/self.layer_lst[-1].in_features))
+        #     self.layer_lst[-3].B = self.get_projection_matrix(self.layer_lst[-3].out_features, output_size)
 
     def forward(self, x):
-        x = self.sequential_layer(x)
+        for module in self.layer:
+            x = module(x)
 
         return x
 
-    def weight_init(self):
-        if self.args.init == 'zero':
-            for name, module in self.sequential_layer.named_modules():
-                if isinstance(module, nn.Linear):
-                    module.weight.data.fill_(0)
-                    if module.bias is not None:
-                        module.bias.data.fill_(0)
-        else:
-            for name, module in self.sequential_layer.named_modules():
-                if isinstance(module, nn.Linear):
-                    nn.init.xavier_normal_(module.weight) #TODO: relu, other activations
-                    if module.bias is not None:
-                        module.bias.data.fill_(0)
+    def dfa_backward(self, e, idx):
+        for i in idx:
+            self.layer[i].dfa_backward(e)
 
-            
+    def dfa_grad(self, idx):
+        for i in idx:
+            self.layer[i].dfa_grad()
+
+    def __len__(self):
+        return len(self.layer)

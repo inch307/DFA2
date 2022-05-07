@@ -3,7 +3,8 @@ import torch
 import torch.optim as optim
 import trainer
 
-from models import simple_conv1, simple_conv2, simple_linear1, simple_linear2, resnet18
+from models import simple_conv1, simple_conv2, simple_linear2, resnet18
+from models import simple_linear1
 
 def get_dataset(args):
 
@@ -42,7 +43,7 @@ def get_network(device, args):
     elif args.net == 'simple_conv2':
         return simple_conv2.SimpleConv2(device=device, args=args).to(device)
     elif args.net == 'simple_linear1':
-        return simple_linear1.SimpleLinear1(device=device, args=args).to(device)
+        return simple_linear1.SimpleLinear1(device=device, args=args, activation='tanh').to(device)
     elif args.net == 'simple_linear2':
         return simple_linear2.SimpleLinear2(device=device, args=args).to(device)
     elif args.net == 'resnet18':

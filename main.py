@@ -7,7 +7,7 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 parser = argparse.ArgumentParser(description='a')
 parser.add_argument('-m', '--model', default='backprop', help='backprop for backprop, dfa for normal dfa, dfa2 for proposed method')
-parser.add_argument('-n', '--net', default='simple_linear2', help = 'simple_conv1 / simple_conv2 / simple_linear1 / simple_linear2 / resnset18')
+parser.add_argument('-n', '--net', default='simple_linear1', help = 'simple_conv1 / simple_conv2 / simple_linear1 / simple_linear2 / resnset18')
 parser.add_argument('-d', '--dataset', default='mnist')
 parser.add_argument('-o', '--optim', default='sgd', help='adam, rmsprop')
 parser.add_argument('-e', '--epochs', default=50, type=int)
@@ -20,6 +20,7 @@ parser.add_argument('--val_batch_size', default=1024, type=int)
 parser.add_argument('--activation', default='tanh')
 parser.add_argument('--experiment', action='store_true', default=False)
 parser.add_argument('--init', default='none')
+parser.add_argument('--bias', default=False, action='store_true')
 
 def main():
     args = parser.parse_args()

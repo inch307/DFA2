@@ -30,7 +30,7 @@ def topk_correct(output, target, topk=(1,)):
 
 def val(net, val_loader, device, args):
     net.eval()
-    criterion = nn.CrossEntropyLoss(reduction='sum')
+    criterion = nn.NLLLoss(reduction='sum')
     test_loss = 0
     test_B_loss = 0
     test_B_acc = [0, 0, 0]
@@ -76,7 +76,7 @@ def val(net, val_loader, device, args):
 
 def train_backprop(net, train_loader, optimizer, device, args):
     net.train()
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.NLLLoss()
     losses = []
     n_iter = 0
     
@@ -95,7 +95,7 @@ def train_backprop(net, train_loader, optimizer, device, args):
     net.eval()
     with torch.no_grad():
         train_loss = 0
-        criterion_train_loss = nn.CrossEntropyLoss(reduction='sum')
+        criterion_train_loss = nn.NLLLoss(reduction='sum')
         accuracy = [0, 0, 0]
         label = []
         pred_lst = []
@@ -134,7 +134,7 @@ def train_backprop(net, train_loader, optimizer, device, args):
 
 def train_dfa(net, train_loader, optimizer, device, args):
     net.train()
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.NLLLoss() 
     losses = []
     n_iter = 0
 
@@ -164,14 +164,17 @@ def train_dfa(net, train_loader, optimizer, device, args):
                 one_hot_target = one_hot(target, args.batch_size, output_size)
 
                 # dfa backward
-                y_hat = F.softmax(output, dim=1)
+                y_hat = net.out.y_hat
+                e = y_hat - one_hot_target
+                idx_lst = [i for i in range(len(net))]
+                print(idx_lst)
                 if args.model == 'dfa':
-                    dfa.dfa_backward(net, y_hat, one_hot_target)
+                    net.dfa_backward(e, idx_lst)
                 elif args.model == 'dfa2':
                     dfa.dfa2_backward(net, y_hat, one_hot_target)
                 # align = dfa.measure_alignment(net) TODO
                 optimizer.zero_grad()
-                dfa.dfa_grad(net)
+                net.dfa_grad(idx_lst)
                 optimizer.step()
 
     else:
@@ -190,19 +193,22 @@ def train_dfa(net, train_loader, optimizer, device, args):
                 one_hot_target = one_hot(target, args.batch_size, output_size).to(device)
 
                 # dfa backward
-                y_hat = F.softmax(output, dim=1)
+                y_hat = net.out.y_hat
+                e = y_hat - one_hot_target
+                idx_lst = [i for i in range(len(net))]
                 if args.model == 'dfa':
-                    dfa.dfa_backward(net, y_hat, one_hot_target)
+                    net.dfa_backward(e, idx_lst)
                 elif args.model == 'dfa2':
                     dfa.dfa2_backward(net, y_hat, one_hot_target)
-                dfa.dfa_grad(net)
-                optimizer.step() #TODO: update available?
+                net.dfa_grad(idx_lst)
+                optimizer.step()
+
 
     # train accuracy and loss
     net.eval()
     with torch.no_grad():
         train_loss = 0
-        criterion_train_loss = nn.CrossEntropyLoss(reduction='sum')
+        criterion_train_loss = nn.NLLLoss(reduction='sum')
         accuracy = [0, 0, 0]
         label = []
         pred_lst = []

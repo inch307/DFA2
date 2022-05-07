@@ -22,37 +22,37 @@ def dfa_backward(net, y_hat, one_hot_target):
                         module.bias.dfa_grad = torch.sum(dx, 0)
     return
 
-def dfa2_backward(net, y_hat, one_hot_target):
-    with torch.no_grad():
-        e = y_hat - one_hot_target
-        do = torch.matmul(e, net.layer_lst[-1].weight) * (1-torch.tanh(net.layer_lst[-3].output) ** 2)
-        # do = torch.matmul(e, net.layer_lst[-3].B) * (1-torch.tanh(net.layer_lst[-3].output) ** 2)
-        # do_norm = torch.linalg.vector_norm(do, dim=1)
-        # print('do')
-        # print(do_norm)
-        output_layer = True
-        output_layer2 = True
-        for module in reversed(net.layer_lst):
-            if isinstance(module, nn.Linear):
-                if output_layer:
-                    module.weight.dfa_grad = torch.matmul(torch.t(e), module.input) / net.args.batch_size
-                    if module.bias is not None:
-                        module.bias.dfa_grad = torch.sum(e, 0)
-                    output_layer = False
-                elif output_layer2:
-                    module.weight.dfa_grad = torch.matmul(torch.t(do), module.input) / net.args.batch_size
-                    if module.bias is not None:
-                        module.bias.dfa_grad = torch.sum(do, 0)
-                    output_layer2 = False
-                else:
-                    dx = torch.matmul(do, module.B) * (1-torch.tanh(module.output) ** 2) # TODO: tanh -> relu?, other activations
-                    # dx_norm = torch.linalg.vector_norm(dx, dim=1)
-                    # print('dx')
-                    # print(dx_norm)
-                    module.weight.dfa_grad = torch.matmul(torch.t(dx), module.input) / net.args.batch_size
-                    if module.bias is not None:
-                        module.bias.dfa_grad = torch.sum(dx, 0)
-    return
+# def dfa2_backward(net, y_hat, one_hot_target):
+#     with torch.no_grad():
+#         e = y_hat - one_hot_target
+#         do = torch.matmul(e, net.layer_lst[-1].weight) * (1-torch.tanh(net.layer_lst[-3].output) ** 2)
+#         # do = torch.matmul(e, net.layer_lst[-3].B) * (1-torch.tanh(net.layer_lst[-3].output) ** 2)
+#         # do_norm = torch.linalg.vector_norm(do, dim=1)
+#         # print('do')
+#         # print(do_norm)
+#         output_layer = True
+#         output_layer2 = True
+#         for module in reversed(net.layer_lst):
+#             if isinstance(module, nn.Linear):
+#                 if output_layer:
+#                     module.weight.dfa_grad = torch.matmul(torch.t(e), module.input) / net.args.batch_size
+#                     if module.bias is not None:
+#                         module.bias.dfa_grad = torch.sum(e, 0)
+#                     output_layer = False
+#                 elif output_layer2:
+#                     module.weight.dfa_grad = torch.matmul(torch.t(do), module.input) / net.args.batch_size
+#                     if module.bias is not None:
+#                         module.bias.dfa_grad = torch.sum(do, 0)
+#                     output_layer2 = False
+#                 else:
+#                     dx = torch.matmul(do, module.B) * (1-torch.tanh(module.output) ** 2) # TODO: tanh -> relu?, other activations
+#                     # dx_norm = torch.linalg.vector_norm(dx, dim=1)
+#                     # print('dx')
+#                     # print(dx_norm)
+#                     module.weight.dfa_grad = torch.matmul(torch.t(dx), module.input) / net.args.batch_size
+#                     if module.bias is not None:
+#                         module.bias.dfa_grad = torch.sum(dx, 0)
+#     return
 
 
 def measure_alignment(net, args):
