@@ -54,13 +54,13 @@ def train(net, train_loader, val_loader, optimizer, device, args):
     if args.model == 'backprop':
         for epoch in range(args.epochs):
             print(f'epoch: {epoch}')
-            trainer.train_backprop(net, train_loader, optimizer, device, args)
-            trainer.val(net, val_loader, device, args)
+            trainer.train_backprop(net, train_loader, optimizer, epoch, device, args)
+            trainer.val(net, val_loader, epoch, device, args)
     elif args.model == 'dfa' or args.model == 'dfa2':
         for epoch in range(args.epochs):
             print(f'epoch: {epoch}')
-            trainer.train_dfa(net, train_loader, optimizer, device, args)
-            trainer.val(net, val_loader, device, args)
+            trainer.train_dfa(net, train_loader, optimizer, epoch, device, args)
+            trainer.val(net, val_loader, epoch, device, args)
 
     #for epoch
         #data, train, if exp backprop backward, no_grad, dfa backward, step, if exp analysis (alignment, ...)

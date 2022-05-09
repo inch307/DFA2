@@ -54,6 +54,12 @@ class SimpleLinear1(nn.Module):
                 module.random_projection_matrix_init()
                 module.zero_init()
 
+        elif self.args.model == 'dfa2':
+            for idx, module in enumerate(self.layer):
+                module.random_projection_matrix_init()
+                module.zero_init()
+
+
         # elif self.args.model == 'dfa2':
         #     # register forward hook
         #     self.reg_forward_hook()
@@ -79,6 +85,10 @@ class SimpleLinear1(nn.Module):
     def dfa_backward(self, e, idx):
         for i in idx:
             self.layer[i].dfa_backward(e)
+
+    def dfa_B_update(self, z, lr):
+        for i in range(len(self)-1):
+            self.layer[i].dfa_B_update(z, lr)
 
     def dfa_grad(self, idx):
         for i in idx:

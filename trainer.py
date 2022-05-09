@@ -28,7 +28,7 @@ def topk_correct(output, target, topk=(1,)):
             res.append(correct_k)
         return res
 
-def val(net, val_loader, device, args):
+def val(net, val_loader, epoch, device, args):
     net.eval()
     criterion = nn.NLLLoss(reduction='sum')
     test_loss = 0
@@ -74,7 +74,7 @@ def val(net, val_loader, device, args):
     print(f'validation, test_loss: {test_loss},  acc1: {accuracy[0]}, acc3: {accuracy[1]}, acc5: {accuracy[2]}, auroc: {auroc}')
     # print(f'validation, acc1: {acc1}, acc3: {acc3}, acc5: {acc5}, test_B_loss_y1: {test_B_loss_1}, test_B_loss_y2: {test_B_loss_2}, test_B_loss_y3: {test_B_loss_3}')
 
-def train_backprop(net, train_loader, optimizer, device, args):
+def train_backprop(net, train_loader, optimizer, epoch, device, args):
     net.train()
     criterion = nn.NLLLoss()
     losses = []
@@ -132,7 +132,7 @@ def train_backprop(net, train_loader, optimizer, device, args):
            
     return train_loss, accuracy
 
-def train_dfa(net, train_loader, optimizer, device, args):
+def train_dfa(net, train_loader, optimizer, epoch, device, args):
     net.train()
     criterion = nn.NLLLoss() 
     losses = []
@@ -167,11 +167,13 @@ def train_dfa(net, train_loader, optimizer, device, args):
                 y_hat = net.out.y_hat
                 e = y_hat - one_hot_target
                 idx_lst = [i for i in range(len(net))]
-                print(idx_lst)
                 if args.model == 'dfa':
                     net.dfa_backward(e, idx_lst)
                 elif args.model == 'dfa2':
-                    dfa.dfa2_backward(net, y_hat, one_hot_target)
+                    if epoch >= 1 and epoch % 2 == 0:
+                        z = net.out.ouput
+                        net.dfa_B_update(z, 1e-4) # TODO: idx_lst
+                    net.dfa_backward(e, idx_lst)
                 # align = dfa.measure_alignment(net) TODO
                 optimizer.zero_grad()
                 net.dfa_grad(idx_lst)
@@ -199,7 +201,12 @@ def train_dfa(net, train_loader, optimizer, device, args):
                 if args.model == 'dfa':
                     net.dfa_backward(e, idx_lst)
                 elif args.model == 'dfa2':
-                    dfa.dfa2_backward(net, y_hat, one_hot_target)
+                    
+                    if epoch % 2 == 1:
+                        z = net.out.output
+                        net.dfa_B_update(z, 1e-4) # TODO: idx_lst
+                    elif epoch % 2 == 0:
+                        net.dfa_backward(e, idx_lst)
                 net.dfa_grad(idx_lst)
                 optimizer.step()
 

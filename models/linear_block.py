@@ -62,3 +62,19 @@ class LinearBlock(nn.Module):
                 if self.fc.bias is not None:
                     self.fc.bias.dfa_grad = torch.sum(dx, 0) / self.input.size(0)
         return 
+
+    def dfa_B_update(self, z, lr):
+        # L = 1/2(z_hat - z)**2
+        # z_hat = By
+        # L = 1/2(By - z)**2
+        # dL/dB = y(By - z)
+        with torch.no_grad():
+            dB = torch.matmul(torch.t(self.activation_out), (torch.matmul(self.activation_out, torch.t(self.B)) - z))
+            # dx_norm = torch.linalg.vector_norm(dx, dim=1)
+            # print('dx')
+            # print(dx_norm)
+            self.B = self.B - lr * torch.t(dB) / self.input.size(0)
+            
+            # if self.fc.bias is not None:
+            #     self.fc.bias.dfa_grad = torch.sum(dx, 0) / self.input.size(0)
+        return 

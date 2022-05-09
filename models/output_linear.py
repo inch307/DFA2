@@ -49,3 +49,6 @@ class OutputLinear(nn.Module):
             if self.fc.bias is not None:
                 self.fc.bias.dfa_grad = torch.sum(e, 0) / self.input.size(0)
         return 
+
+    def dfa_B_update(self, z, lr):
+        return
